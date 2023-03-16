@@ -1,5 +1,5 @@
 # List of files for git to ignore
-
+/env
 /bazel-*
 /build/
 /cmake-build-*/

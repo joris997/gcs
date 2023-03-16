@@ -237,6 +237,9 @@ class BezierGCS(BaseGCS):
 
         u_path_control = self.u_r_trajectory.MakeDerivative(1).control_points()
         u_time_control = self.u_h_trajectory.MakeDerivative(1).control_points()
+
+        print("u_time_control: ", u_time_control)
+        print("u_h_trajectory.MakeDerivative(1): ", self.u_h_trajectory.MakeDerivative(1))
         lb = np.expand_dims(lower_bound, 1)
         ub = np.expand_dims(upper_bound, 1)
 
@@ -346,6 +349,8 @@ class BezierGCS(BaseGCS):
 
         path_control_points = np.array(path_control_points).T
         time_control_points = np.array(time_control_points).T
+        # print("path_control_points: ", path_control_points)
+        # print("type: ", type(path_control_points))
 
         path = BsplineTrajectory(BsplineBasis(self.order + 1, knots), path_control_points)
         time_traj = BsplineTrajectory(BsplineBasis(self.order + 1, knots), time_control_points)
