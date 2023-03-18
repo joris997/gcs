@@ -44,41 +44,9 @@ from pydrake.trajectories import (
 from gcs.base import BaseGCS
 from gcs.bezier import BezierTrajectory
 
-def plot_bezier(r_control_points,h_control_points):
-    order = 4
-    num_basis_functions = 4
+from helpers import plot_bezier
 
-    r_bspline = BsplineBasis(order,num_basis_functions,
-                             KnotVectorType.kClampedUniform,0.,1.)
-    h_bspline = BsplineBasis(order,num_basis_functions,
-                             KnotVectorType.kClampedUniform,0.,1.)
-    
-    r_eval = []
-    h_eval = []
-    evals = np.linspace(0,1,25)
-    for i in evals:
-        r_eval.append(r_bspline.EvaluateCurve(r_control_points.T,i))
-        h_eval.append(h_bspline.EvaluateCurve(h_control_points.T,i))
-
-    fig, axs = plt.subplots(1,2)
-    for element in r_eval:
-        axs[0].scatter(element[0],element[1],color='k')
-    axs[0].set_xlabel('x position')
-    axs[0].set_ylabel('y position')
-    axs[0].set_title('position')
-    axs[0].set_aspect('equal')
-
-    for idx,element in enumerate(h_eval):
-        axs[1].scatter(evals[idx],element[0],color='k')
-    axs[1].set_xlabel('time')
-    axs[1].set_ylabel('phase')
-    axs[1].set_title('position')
-    axs[1].set_aspect('equal')
-    
-    
-    plt.show()
-
-def spline_opt():
+def single_spline_opt():
     order = 4
     num_basis_functions = 4
     # start and end control point
@@ -100,10 +68,20 @@ def spline_opt():
     tf = np.array([[1.0]])
     eta = 0.25
     
-    lb0 = np.array([[-1],
-                    [-1]])
-    ub0 = np.array([[1],
-                    [2]])
+    rlb0 = np.array([[-1],
+                     [-1]])
+    rub0 = np.array([[1],
+                     [2]])
+    drlb0 = np.array([[-1],
+                      [-1]])
+    drub0 = np.array([[1],
+                      [2]])
+    ddrlb0 = np.array([[-2],
+                       [-2]])
+    ddrub0 = np.array([[2],
+                       [2]])
+    
+
     
     prog = MathematicalProgram()
     rs = prog.NewContinuousVariables(2,4)
@@ -123,6 +101,12 @@ def spline_opt():
     h_control_points = h_trajectory.control_points()
     dr_control_points = r_trajectory.MakeDerivative(1).control_points()
     dh_control_points = h_trajectory.MakeDerivative(1).control_points()
+    ddr_control_points = r_trajectory.MakeDerivative(2).control_points()
+    ddh_control_points = h_trajectory.MakeDerivative(2).control_points()
+
+    print(len(r_control_points))
+    print(len(dr_control_points))
+    print(len(ddr_control_points))
 
 
     ### PATH
@@ -141,15 +125,24 @@ def spline_opt():
     # control points of 0th derivative in a convex set around x: [-1, 1], y: [-2, 2]
     for i in range(1,order-1):
         prog.AddLinearConstraint(
-            DecomposeLinearExpressions(r_control_points[i][0:2],vars),lb0[0:2],ub0[0:2],vars)
+            DecomposeLinearExpressions(r_control_points[i][0:2],vars),rlb0[0:2],rub0[0:2],vars)
     # control points of 1st derivative in a convex set around x: [-1, 1]*dh(s), y: [-2, 2]*dh(s)
     for i in range(0,len(dr_control_points)):
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars) - 
-            ub0[0:2]*DecomposeLinearExpressions(dh_control_points[i][0:2],vars),-infs,zeros,vars)
+            drub0[0:2]*DecomposeLinearExpressions(dh_control_points[i][0:2],vars),-infs,zeros,vars)
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars) - 
-            lb0[0:2]*DecomposeLinearExpressions(dh_control_points[i][0:2],vars),zeros,infs,vars)
+            drlb0[0:2]*DecomposeLinearExpressions(dh_control_points[i][0:2],vars),zeros,infs,vars)
+    # control points of 2nd derivative in a convex set of actuator constraints
+    # TODO: this is nonconvex because simult. opt. r and h, not sure why
+    # for i in range(0,len(ddr_control_points)):
+    #     prog.AddLinearConstraint(
+    #         DecomposeLinearExpressions(ddr_control_points[i][0:2],vars) -
+    #         ddrub0[0:2]*DecomposeLinearExpressions(ddh_control_points[i][0:2],vars),-infs,zeros,vars)
+    #     prog.AddLinearConstraint(
+    #         DecomposeLinearExpressions(ddr_control_points[i][0:2],vars) -
+    #         ddrlb0[0:2]*DecomposeLinearExpressions(ddh_control_points[i][0:2],vars),zeros,infs,vars)
         
     ### TIME
     # constrain the initial control point
@@ -197,6 +190,6 @@ def spline_opt():
 
 if __name__ == "__main__":
     # initial_testing()
-    spline_opt()
+    single_spline_opt()
 
     
