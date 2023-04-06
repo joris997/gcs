@@ -44,9 +44,13 @@ from pydrake.trajectories import (
 from gcs.base import BaseGCS
 from gcs.bezier import BezierTrajectory
 
-from helpers import plot_bezier
+from helpers import plot_bezier, get_halfspace_polyhedral, Polygon
+
 
 def single_spline_opt():
+    # keep track of the polygons around waypoints
+    polygons = []
+
     order = 4
     num_basis_functions = 4
     # start and end control point
@@ -108,25 +112,38 @@ def single_spline_opt():
     # constrain the initial control point
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(r_control_points[0][0:2],vars),x0[0:2],vars)
+    
+    # prog.AddLinearEqualityConstraint(
     prog.AddLinearEqualityConstraint(
-        DecomposeLinearExpressions(dr_control_points[0][0:2],vars) - dx0[0:2],zeros,vars)
+        DecomposeLinearExpressions(dr_control_points[0][0:2],vars) - 
+        DecomposeLinearExpressions(dh_control_points[0][0:2],vars)*dx0[0:2],zeros,vars)
+    
     # constrain the final control point
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(r_control_points[-1][0:2],vars),xf[0:2],vars)
     prog.AddLinearEqualityConstraint(
-        DecomposeLinearExpressions(dr_control_points[-1][0:2],vars) - dxf[0:2],zeros,vars)
+        DecomposeLinearExpressions(dr_control_points[-1][0:2],vars),dxf[0:2],vars)
+
     # control points of 0th derivative in a convex set around x: [-1, 1], y: [-2, 2]
-    for i in range(1,order-1):
-        prog.AddLinearConstraint(
-            DecomposeLinearExpressions(r_control_points[i][0:2],vars),rlb0[0:2],rub0[0:2],vars)
+    eps = 0.25
+    A,b = get_halfspace_polyhedral(x0,xf,eps)
+    polygons.append(Polygon(A,b,eps))
+    for i in range(0,len(r_control_points)):
+        cp = DecomposeLinearExpressions(r_control_points[i][0:2],vars) # control point
+        prog.AddLinearConstraint(A@cp,-np.full((4,1),np.inf),b.reshape((4,1)),vars)
+    # for i in range(1,order-1):
+    #     prog.AddLinearConstraint(
+    #         DecomposeLinearExpressions(r_control_points[i][0:2],vars),rlb0[0:2],rub0[0:2],vars)
+
     # control points of 1st derivative in a convex set around x: [-1, 1]*dh(s), y: [-2, 2]*dh(s)
     for i in range(0,len(dr_control_points)):
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars),-infs,drub0[0:2],vars)
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars),drlb0[0:2],infs,vars)
-    # control points of 2nd derivative in a convex set of actuator constraints
-    # TODO: this is nonconvex because simult. opt. r and h, not sure why
+        
+    # # control points of 2nd derivative in a convex set of actuator constraints
+    # # TODO: this is nonconvex because simult. opt. r and h, not sure why
     # for i in range(0,len(ddr_control_points)):
     #     prog.AddLinearConstraint(
     #         DecomposeLinearExpressions(ddr_control_points[i][0:2],vars) -
@@ -172,7 +189,7 @@ def single_spline_opt():
     print("rs: ", rs_sol)
     print("hs: ", hs_sol)
 
-    plot_bezier(rs_sol,hs_sol)
+    plot_bezier(rs_sol,hs_sol,polygons)
 
 
 if __name__ == "__main__":

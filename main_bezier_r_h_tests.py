@@ -110,23 +110,23 @@ def single_spline_opt():
 
 
     ### PATH
-    # constrain the initial control point
+    ## constrain the initial control point
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(r_control_points[0][0:2],vars),x0[0:2],vars)
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(dr_control_points[0][0:2],vars) - 
         DecomposeLinearExpressions(dh_control_points[0][0:2],vars)*dx0[0:2],zeros,vars)
-    # constrain the final control point
+    ## constrain the final control point
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(r_control_points[-1][0:2],vars),xf[0:2],vars)
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(dr_control_points[-1][0:2],vars) - 
         DecomposeLinearExpressions(dh_control_points[-1][0:2],vars)*dxf[0:2],zeros,vars)
-    # control points of 0th derivative in a convex set around x: [-1, 1], y: [-2, 2]
+    ## control points of 0th derivative in a convex set around x: [-1, 1], y: [-2, 2]
     for i in range(1,order-1):
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(r_control_points[i][0:2],vars),rlb0[0:2],rub0[0:2],vars)
-    # control points of 1st derivative in a convex set around x: [-1, 1]*dh(s), y: [-2, 2]*dh(s)
+    ## control points of 1st derivative in a convex set around x: [-1, 1]*dh(s), y: [-2, 2]*dh(s)
     for i in range(0,len(dr_control_points)):
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars) - 
@@ -134,7 +134,7 @@ def single_spline_opt():
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dr_control_points[i][0:2],vars) - 
             drlb0[0:2]*DecomposeLinearExpressions(dh_control_points[i][0:2],vars),zeros,infs,vars)
-    # control points of 2nd derivative in a convex set of actuator constraints
+    ## control points of 2nd derivative in a convex set of actuator constraints
     # TODO: this is nonconvex because simult. opt. r and h, not sure why
     # for i in range(0,len(ddr_control_points)):
     #     prog.AddLinearConstraint(
@@ -145,32 +145,35 @@ def single_spline_opt():
     #         ddrlb0[0:2]*DecomposeLinearExpressions(ddh_control_points[i][0:2],vars),zeros,infs,vars)
         
     ### TIME
-    # constrain the initial control point
+    ## constrain the initial control point
     prog.AddLinearEqualityConstraint(
         DecomposeLinearExpressions(h_control_points[0][0],vars),t0[0],vars)
-    # constrain the final control point
-    prog.AddLinearConstraint(
-        DecomposeLinearExpressions(h_control_points[-1][0],vars),tf[0]-eta,tf[0]+eta,vars)
-    # control points for the 1st derivative to be strictly positive
+    # ## constrain the final control point
+    # prog.AddLinearConstraint(
+    #     DecomposeLinearExpressions(h_control_points[-1][0],vars),tf[0]-eta,tf[0]+eta,vars)
+    ## constrain the final control point
+    prog.AddLinearEqualityConstraint(
+        DecomposeLinearExpressions(h_control_points[-1][0],vars),tf[0],vars)
+    ## control points for the 1st derivative to be strictly positive
     for i in range(0,len(dh_control_points)):
         prog.AddLinearConstraint(
             DecomposeLinearExpressions(dh_control_points[i][0],vars),np.array([0.0]),np.array([np.inf]),vars)
 
     ### COST
-    # final time 
+    ## final time 
     a = 1
     if a != 0:
         hS = h_control_points[-1] - h_control_points[0]
         prog.AddQuadraticCost(vars[-1])
 
-    # path length
+    ## path length
     b = 0
     if b != 0:
         for i in range(len(dr_control_points)):
             H = DecomposeLinearExpressions(dr_control_points[i]/order, vars)
             prog.AddL2NormCost(H,np.zeros(2),vars)
 
-    # path integral
+    ## path integral
     c = 1
     # TODO
 
